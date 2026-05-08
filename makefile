@@ -3,7 +3,13 @@ NAME = so_long
 CC = cc
 CFLAGS = -Wall -Wextra -Werror
 
-SRC = src/main.c
+SRC = src/main.c \
+	  src/init.c \
+	  src/render.c \
+	  src/hooks.c \
+	  src/utils.c \
+	  src/player.c
+
 LIBFT_DIR = ../libft
 LIBFT = $(LIBFT_DIR)/libft.a
 
