@@ -1,0 +1,502 @@
+========================================
+ARCHIVO: ./include/general.h
+========================================
+#ifndef GENERAL_H
+# define GENERAL_H
+
+# include <fcntl.h>
+# include <unistd.h>
+# include <stdlib.h>
+# include <stddef.h>
+# include "libft.h"
+# include "mlx.h"
+
+typedef struct s_game
+{
+	void	*mlx;
+	void	*win;
+	char	**map; // El mapa como una matriz de caracteres
+	int		map_width; // Ancho del mapa en tiles
+	int		map_height; // Alto del mapa en tiles
+	int		tile_size; // Tamaño de cada tile en píxeles
+
+	// Punteros a las imágenes (texturas)
+	void	*img_player;
+	void	*img_wall;
+	void	*img_collectible;
+	void	*img_exit;
+	void	*img_floor;
+
+	int		player_x; // Posición X del jugador en tiles
+	int		player_y; // Posición Y del jugador en tiles
+
+	int		collectibles_count;
+	int		total_collectibles;
+	int		moves;
+}	t_game;
+
+/* Prototipos de funciones */
+int		check_extension(char *filename, char *extension);
+void	init_parse(char *map_path, t_game *game);
+int		exit_game(t_game *game);
+void	load_textures(t_game *game);
+void	draw_map(t_game *game);
+void	move_player(t_game *game, int new_x, int new_y);
+int		handle_keypress(int keysym, t_game *game);
+void	free_map(t_game *game);
+
+#endif
+
+========================================
+ARCHIVO: ./makefile
+========================================
+NAME = so_long
+
+CC = cc
+CFLAGS = -Wall -Wextra -Werror
+
+SRC = src/main.c \
+	  src/init.c \
+	  src/render.c \
+	  src/hooks.c \
+	  src/utils.c \
+	  src/player.c
+
+LIBFT_DIR = ../libft
+LIBFT = $(LIBFT_DIR)/libft.a
+
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S), Linux)
+	# Configuración para Linux
+	MLX_DIR = mlx_linux
+	MLX = -L$(MLX_DIR) -lmlx -L/usr/lib -lXext -lX11 -lm -lz
+	INCLUDES = -I$(MLX_DIR) -I/usr/include -Iinclude -I$(LIBFT_DIR)
+else
+	# Configuración para macOS (Darwin)
+	MLX_DIR = mlx_mac
+	MLX = -L$(MLX_DIR) -lmlx -framework OpenGL -framework AppKit
+	INCLUDES = -I$(MLX_DIR) -Iinclude -I$(LIBFT_DIR)
+endif
+
+all: $(NAME)
+
+$(LIBFT):
+	make -C $(LIBFT_DIR)
+
+$(NAME): $(LIBFT)
+	@make -C $(MLX_DIR) > /dev/null 2>&1
+	@echo "mlx compiled"
+	$(CC) $(CFLAGS) $(SRC) $(INCLUDES) $(LIBFT) $(MLX) -o $(NAME)
+
+clean:
+	make clean -C $(MLX_DIR)
+	make clean -C $(LIBFT_DIR)
+
+fclean: clean
+	make fclean -C $(LIBFT_DIR)
+	rm -f $(NAME)
+
+re: fclean all
+
+
+========================================
+ARCHIVO: ./maps/invalid_no_exit.ber
+========================================
+1111
+1P01
+1C01
+1111
+
+========================================
+ARCHIVO: ./maps/valid_big.ber
+========================================
+111111111111111
+1P0001C00000001
+100C01000010001
+100000000C100E1
+111111111111111
+
+
+========================================
+ARCHIVO: ./maps/valid.ber
+========================================
+111111
+1P0001
+100C01
+1000E1
+111111
+
+========================================
+ARCHIVO: ./README.md
+========================================
+# So Long - 42 Project
+
+Un pequeño videojuego 2D desarrollado en C utilizando la librería gráfica **MiniLibX**. El objetivo es recoger todos los objetos del mapa y llegar a la salida en el menor número de movimientos posible.
+
+## Requisitos
+
+- Un compilador de C (`gcc` o `clang`).
+- Librerías de desarrollo de X11 (si usas Linux).
+- MiniLibX instalada en el directorio del proyecto.
+
+## Instalación y Ejecución
+
+1. Clona la **libft** de GitHub dentro de la raíz del proyecto:
+   ```bash
+   git clone https://github.com/tu-usuario/libft.git libft
+   ```
+
+2. Compila el proyecto con el Makefile:
+   ```bash
+   make
+   ```
+
+3. Ejecuta el juego pasando un mapa como argumento:
+   ```bash
+   ./so_long maps/valid.ber
+   ```
+
+## Controles
+
+| Tecla | Acción |
+| :--- | :--- |
+| **W** | Mover hacia arriba |
+| **A** | Mover hacia la izquierda |
+| **S** | Mover hacia abajo |
+| **D** | Mover hacia la derecha |
+| **ESC** | Cerrar el juego |
+
+## Formato del Mapa
+El archivo `.ber` debe estar compuesto por:
+- `1` para muros.
+- `0` para espacios vacíos.
+- `P` para la posición inicial del jugador.
+- `C` para coleccionables.
+- `E` para la salida.
+
+========================================
+ARCHIVO: ./script.sh
+========================================
+#!/bin/bash
+
+OUTPUT="todo_el_codigo.txt"
+
+# Vaciar archivo salida
+> "$OUTPUT"
+
+find . -type f \
+	! -name "$OUTPUT" \
+	! -path "*/.git/*" \
+	! -path "*/mlx/*" \
+	! -path "*/Libft/*" \
+	! -path "*/mlx_linux/*" \
+	! -path "*/mlx_mac/*" \
+	! -path "*/assets/*" \
+| sort | while read -r file
+do
+{
+	echo "========================================"
+	echo "ARCHIVO: $file"
+	echo "========================================"
+	cat "$file"
+	echo
+	echo
+} >> "$OUTPUT"
+
+done
+
+echo "Archivo generado: $OUTPUT"
+
+
+========================================
+ARCHIVO: ./src/hooks.c
+========================================
+#include "general.h"
+
+int	exit_game(t_game *game)
+{
+	if (game->img_player)
+		mlx_destroy_image(game->mlx, game->img_player);
+	if (game->img_wall)
+		mlx_destroy_image(game->mlx, game->img_wall);
+	if (game->img_collectible)
+		mlx_destroy_image(game->mlx, game->img_collectible);
+	if (game->img_exit)
+		mlx_destroy_image(game->mlx, game->img_exit);
+	if (game->img_floor)
+		mlx_destroy_image(game->mlx, game->img_floor);
+	mlx_destroy_window(game->mlx, game->win);
+	free_map(game);
+	exit(0);
+	return (0);
+}
+
+int	handle_keypress(int keysym, t_game *game)
+{
+	if (keysym == 53 || keysym == 65307)
+		exit_game(game);
+	if (keysym == 13 || keysym == 119)
+		move_player(game, game->player_x, game->player_y - 1);
+	if (keysym == 1 || keysym == 115)
+		move_player(game, game->player_x, game->player_y + 1);
+	if (keysym == 0 || keysym == 97)
+		move_player(game, game->player_x - 1, game->player_y);
+	if (keysym == 2 || keysym == 100)
+		move_player(game, game->player_x + 1, game->player_y);
+	return (0);
+}
+
+========================================
+ARCHIVO: ./src/init.c
+========================================
+#include "general.h"
+
+void	init_parse(char *map_path, t_game *game)
+{
+	int		fd;
+	int		i;
+	int		j;
+	char	buffer[100000];
+	int		bytes;
+
+	fd = open(map_path, O_RDONLY);
+	if (fd < 0)
+	{
+		ft_putstr_fd("Error\nNo se pudo abrir el archivo\n", 2);
+		exit(1);
+	}
+	bytes = read(fd, buffer, 99999);
+	if (bytes <= 0)
+	{
+		ft_putstr_fd("Error\nArchivo vacío o error de lectura\n", 2);
+		close(fd);
+		exit(1);
+	}
+	buffer[bytes] = '\0';
+	game->map = ft_split(buffer, '\n');
+	if (!game->map)
+		exit(1);
+	game->map_height = 0;
+	while (game->map[game->map_height])
+		game->map_height++;
+	if (game->map_height > 0)
+		game->map_width = ft_strlen(game->map[0]);
+	i = 0;
+	while (game->map[i])
+	{
+		j = 0;
+		while (game->map[i][j])
+		{
+			if (game->map[i][j] == 'C')
+				game->total_collectibles++;
+			j++;
+		}
+		i++;
+	}
+	ft_putstr_fd("Mapa cargado y parseado: ", 1);
+	ft_putstr_fd(map_path, 1);
+	ft_putstr_fd("... [OK]\n", 1);
+	close(fd);
+}
+
+void	load_textures(t_game *game)
+{
+	int	w;
+	int	h;
+
+	game->img_player = mlx_xpm_file_to_image(game->mlx, "assets/player.xpm", &w, &h);
+	game->img_wall = mlx_xpm_file_to_image(game->mlx, "assets/pared.xpm", &w, &h);
+	game->img_collectible = mlx_xpm_file_to_image(game->mlx, "assets/collective.xpm", &w, &h);
+	game->img_exit = mlx_xpm_file_to_image(game->mlx, "assets/salida.xpm", &w, &h);
+	game->img_floor = mlx_xpm_file_to_image(game->mlx, "assets/floor.xpm", &w, &h);
+	if (!game->img_player || !game->img_wall || !game->img_collectible ||
+		!game->img_exit || !game->img_floor)
+	{
+		if (!game->img_player)
+			ft_putstr_fd("Failed to load assets/player.xpm\n", 2);
+		if (!game->img_wall)
+			ft_putstr_fd("Failed to load assets/pared.xpm\n", 2);
+		if (!game->img_collectible)
+			ft_putstr_fd("Failed to load assets/collective.xpm\n", 2);
+		if (!game->img_exit)
+			ft_putstr_fd("Failed to load assets/salida.xpm\n", 2);
+		if (!game->img_floor)
+			ft_putstr_fd("Failed to load assets/floor.xpm\n", 2);
+		ft_putstr_fd("Error\nNo se pudieron cargar todas las texturas.\n", 2);
+		exit_game(game);
+	}
+}
+
+========================================
+ARCHIVO: ./src/main.c
+========================================
+#include "general.h"
+
+int	main(int argc, char **argv)
+{
+	t_game	game;
+
+	// Inicializar la estructura del juego a 0 para evitar valores basura
+	ft_bzero(&game, sizeof(t_game));
+
+	if (argc != 2)
+	{
+		ft_putstr_fd("Error\nUso: ./so_long [mapa.ber]\n", 2);
+		return (1);
+	}
+
+	// Validamos la extensión del archivo
+	if (!check_extension(argv[1], ".ber"))
+	{
+		ft_putstr_fd("Error\nEl archivo debe tener extensión .ber\n", 2);
+		return (1);
+	}
+
+	// Pasar la dirección de 'game' a init_parse para que pueda modificarla
+	init_parse(argv[1], &game);
+
+	game.mlx = mlx_init();
+	if (!game.mlx)
+		return (1);
+	
+	game.tile_size = 64;
+	// Crear la ventana con el tamaño del mapa * tamaño del tile
+	game.win = mlx_new_window(game.mlx, game.map_width * game.tile_size,
+								game.map_height * game.tile_size, "so_long - 42");
+	if (!game.win)
+		return (1);
+	
+	load_textures(&game); // Cargar todas las imágenes
+	draw_map(&game);      // Dibujar el mapa inicial
+
+	// Hook para la X de la ventana (evento 17: DestroyNotify)
+	mlx_hook(game.win, 17, 0, exit_game, &game);
+	// Hook para el teclado
+	mlx_key_hook(game.win, handle_keypress, &game);
+	mlx_loop(game.mlx);
+	return (0);
+}
+
+========================================
+ARCHIVO: ./src/player.c
+========================================
+#include "general.h"
+
+void	move_player(t_game *game, int new_x, int new_y)
+{
+	if (game->map[new_y][new_x] == '1')
+		return ;
+	if (game->map[new_y][new_x] == 'C')
+	{
+		game->collectibles_count++;
+		ft_putstr_fd("Coleccionables: ", 1);
+		ft_putnbr_fd(game->collectibles_count, 1);
+		ft_putstr_fd("/", 1);
+		ft_putnbr_fd(game->total_collectibles, 1);
+		ft_putstr_fd("\n", 1);
+	}
+	if (game->map[new_y][new_x] == 'E')
+	{
+		if (game->collectibles_count == game->total_collectibles)
+		{
+			ft_putstr_fd("¡TE HAS COMIDO TODAS LAS MIERDAS! Fin del juego.\n", 1);
+			exit_game(game);
+		}
+		ft_putstr_fd("Aun faltan mierdas por recoger...\n", 1);
+		return ;
+	}
+	game->map[game->player_y][game->player_x] = '0';
+	game->player_x = new_x;
+	game->player_y = new_y;
+	game->map[game->player_y][game->player_x] = 'P';
+	game->moves++;
+	ft_putstr_fd("Movimientos: ", 1);
+	ft_putnbr_fd(game->moves, 1);
+	ft_putstr_fd("\n", 1);
+	draw_map(game);
+}
+
+
+========================================
+ARCHIVO: ./src/render.c
+========================================
+#include "general.h"
+
+void	draw_map(t_game *game)
+{
+	int		x;
+	int		y;
+
+	y = 0;
+	while (y < game->map_height)
+	{
+		x = 0;
+		while (x < game->map_width)
+		{
+			// 1. Siempre dibujamos el suelo primero si no es una pared
+			if (game->map[y][x] != '1')
+				mlx_put_image_to_window(game->mlx, game->win, game->img_floor,
+					x * game->tile_size, y * game->tile_size);
+
+			// 2. Dibujamos el elemento correspondiente encima
+			if (game->map[y][x] == '1')
+				mlx_put_image_to_window(game->mlx, game->win, game->img_wall,
+					x * game->tile_size, y * game->tile_size);
+			else if (game->map[y][x] == 'C')
+				mlx_put_image_to_window(game->mlx, game->win, game->img_collectible,
+					x * game->tile_size, y * game->tile_size);
+			else if (game->map[y][x] == 'E')
+				mlx_put_image_to_window(game->mlx, game->win, game->img_exit,
+					x * game->tile_size, y * game->tile_size);
+			else if (game->map[y][x] == 'P')
+			{
+				game->player_x = x;
+				game->player_y = y;
+				mlx_put_image_to_window(game->mlx, game->win, game->img_player,
+					x * game->tile_size, y * game->tile_size);
+			}
+			x++;
+		}
+		y++;
+	}
+}
+
+========================================
+ARCHIVO: ./src/utils.c
+========================================
+#include "general.h"
+
+int	check_extension(char *filename, char *extension)
+{
+	size_t	len_f;
+	size_t	len_e;
+
+	if (!filename || !extension)
+		return (0);
+	len_f = ft_strlen(filename);
+	len_e = ft_strlen(extension);
+	if (len_f <= len_e)
+		return (0);
+	if (ft_strncmp(filename + (len_f - len_e), extension, len_e) == 0)
+		return (1);
+	return (0);
+}
+
+void	free_map(t_game *game)
+{
+	int	i;
+
+	if (game->map)
+	{
+		i = 0;
+		while (i < game->map_height)
+		{
+			free(game->map[i]);
+			i++;
+		}
+		free(game->map);
+		game->map = NULL;
+	}
+}
+

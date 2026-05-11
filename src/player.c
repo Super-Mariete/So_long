@@ -20,7 +20,7 @@ void	move_player(t_game *game, int new_x, int new_y)
 			ft_putstr_fd("¡TE HAS COMIDO TODAS LAS MIERDAS! Fin del juego.\n", 1);
 			exit_game(game);
 		}
-		ft_putstr_fd("Aun faltan objetos por recoger...\n", 1);
+		ft_putstr_fd("Aun faltan mierdas por recoger...\n", 1);
 		return ;
 	}
 	game->map[game->player_y][game->player_x] = '0';
